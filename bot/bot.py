@@ -41,13 +41,13 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
         "profile.default_content_setting_values.automatic_downloads": 1,
         "profile.default_content_setting_values.notifications": 2,
         "profile.default_content_setting_values.popups": 0,
-        # "profile.managed_default_content_settings.images": 2  # ⛔️ جلوگیری از لود تصاویر
+        "profile.managed_default_content_settings.images": 2  # ⛔️ جلوگیری از لود تصاویر
     })
 
-    # chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
-    # chrome_options.add_argument("--disable-gpu")
-    # chrome_options.add_argument("--no-sandbox")
-    # chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
 
     driver = webdriver.Chrome(options=chrome_options)
     context.application.bot_data["driver"] = driver
