@@ -26,18 +26,27 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- Browser Initialization ----------------
 async def init_browser(context: ContextTypes.DEFAULT_TYPE):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    download_dir = os.path.join(base_dir, "download")
+    os.makedirs(download_dir, exist_ok=True)
+
     chrome_options = webdriver.ChromeOptions()
-    output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "download")
-    os.makedirs(output_dir, exist_ok=True)
-    prefs = {
-        "download.default_directory": output_dir,  # <— مسیر دلخواه
+    chrome_options.add_experimental_option("prefs", {
+        "download.default_directory": download_dir,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
-        "safebrowsing.enabled": True
-    }
-    chrome_options.add_experimental_option("prefs", prefs)
+        "safebrowsing.enabled": True,
+        "profile.default_content_setting_values.automatic_downloads": 1,
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_setting_values.popups": 0,
+        "profile.managed_default_content_settings.images": 2  # ⛔️ جلوگیری از لود تصاویر
+    })
 
-    chrome_options.add_experimental_option("detach", True)
+    chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+
     driver = webdriver.Chrome(options=chrome_options)
     context.application.bot_data["driver"] = driver
     return driver
@@ -155,30 +164,18 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # پردازش فایل
     await update.message.reply_text("🎛 در حال پردازش فایل و تقسیم به بخش‌ها…")
-    get_split_mp3(str(input_path))  # فرض بر async بودن
-
     splits_dir = base_dir / "splits"
+    get_split_mp3(str(input_path), output_base_dir=splits_dir)
+
     download_dir = base_dir / "download"
     download_dir.mkdir(exist_ok=True)
 
-    # رفرش و انتخاب کرکتر
+
     driver.refresh()
     WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.readyState") == "complete")
     await update.message.reply_text("🔄 مرورگر رفرش شد.")
     wait = WebDriverWait(driver, 30)
 
-    try:
-        item_xpath = (
-            f"//div[contains(@class,'toneItem-zsczqb')]"
-            f"[.//div[contains(@class,'toneItem__name') and normalize-space(text())='{character_name}']]"
-        )
-        item = wait.until(EC.element_to_be_clickable((By.XPATH, item_xpath)))
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", item)
-        driver.execute_script("arguments[0].click();", item)
-        driver.execute_script("arguments[0].classList.add('toneItem--selected-ZwhzHN');", item)
-        await update.message.reply_text(f"🎭 کرکتر «{character_name}» انتخاب شد.")
-    except Exception as e:
-        return await update.message.reply_text(f"❌ خطا در انتخاب کرکتر: {e}")
 
     # آپلود همه فایل‌ها
     split_files = sorted(splits_dir.glob("*.mp3"), key=lambda f: int(f.stem))
@@ -187,6 +184,21 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for file in split_files:
         try:
+            driver.refresh()
+            WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.readyState") == "complete")
+            await update.message.reply_text("🔄 مرورگر رفرش شد.")
+            wait = WebDriverWait(driver, 30)
+            
+            item_xpath = (
+                f"//div[contains(@class,'toneItem-zsczqb')]"
+                f"[.//div[contains(@class,'toneItem__name') and normalize-space(text())='{character_name}']]"
+            )
+            item = wait.until(EC.element_to_be_clickable((By.XPATH, item_xpath)))
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", item)
+            driver.execute_script("arguments[0].click();", item)
+            driver.execute_script("arguments[0].classList.add('toneItem--selected-ZwhzHN');", item)
+            await update.message.reply_text(f"🎭 کرکتر «{character_name}» انتخاب شد.")
+            
             await update.message.reply_text(f"📤 آپلود فایل: {file.name}")
             file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
             driver.execute_script(
@@ -232,9 +244,15 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if downloaded_file:
                 await update.message.reply_text(f"✅ فایل دانلود شد: {downloaded_file.name}")
             else:
-                await update.message.reply_text("⚠️ فایل خروجی دریافت نشد.")
+                # await update.message.reply_text("⚠️ فایل خروجی دریافت نشد.")
+                pass
         except Exception as e:
             await update.message.reply_text(f"❌ خطا در فایل {file.name}: {e}")
+            
+    driver.refresh()
+    WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.readyState") == "complete")
+    await update.message.reply_text("🔄 مرورگر رفرش شد.")
+    wait = WebDriverWait(driver, 30)
 
     await update.message.reply_text("🎉 تمام فایل‌ها پردازش، آپلود و دانلود شدند.")
 
