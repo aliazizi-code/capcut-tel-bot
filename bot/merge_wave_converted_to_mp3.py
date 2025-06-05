@@ -5,8 +5,10 @@ import glob
 import shutil
 import subprocess
 from datetime import datetime
+from clear_dir import clean_directory
 
-def merge_audio(input_dir="download", output_dir="merged"):
+def merge_audio(input_dir, output_dir):
+    # clean_directory(output_dir)
     try:
         audio_files = glob.glob(os.path.join(input_dir, "*.wav")) + glob.glob(os.path.join(input_dir, "*.mp3"))
         if not audio_files:
@@ -80,20 +82,22 @@ def merge_audio(input_dir="download", output_dir="merged"):
                             bitrate="320k",
                             parameters=["-ar", "44100", "-ac", "2", "-q:a", "0"])
 
-        # # حذف فایل‌های ورودی پس از ادغام
-        # for f in audio_files:
-        #     try:
-        #         os.remove(f)
-        #     except Exception as e:
-        #         print(f"⚠️ Couldn't delete {f}: {e}")
+        # حذف فایل‌های ورودی پس از ادغام
+        for f in audio_files:
+            try:
+                os.remove(f)
+            except Exception as e:
+                print(f"⚠️ Couldn't delete {f}: {e}")
 
-        # print(f"\n🎉 Merged file created at: {output_path}")
-        # return output_path
+        print(f"\n🎉 Merged file created at: {output_path}")
+        return output_path
 
     except Exception as e:
         print(f"\n❌ Error during process: {e}")
         return None
 
+        
 
 
-merge_audio(input_dir="/home/aliazizi-code/Desktop/step 3")
+
+

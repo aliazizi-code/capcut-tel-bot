@@ -2,8 +2,8 @@ import os
 from pydub import AudioSegment
 from clear_dir import clean_directory
 
-def get_split_mp3(input_path, n_minutes=2, output_base_dir="splits"):
-    clean_directory(output_base_dir)
+def get_split_mp3(input_path, n_minutes=15, output_base_dir="splits"):
+    # clean_directory(output_base_dir)
     
     if not os.path.isfile(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")

@@ -16,6 +16,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from split_mp3 import get_split_mp3
+from merge_wave_converted_to_mp3 import merge_audio
+from clear_dir import clean_directory
 
 
 load_dotenv()
@@ -39,13 +41,13 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
         "profile.default_content_setting_values.automatic_downloads": 1,
         "profile.default_content_setting_values.notifications": 2,
         "profile.default_content_setting_values.popups": 0,
-        "profile.managed_default_content_settings.images": 2  # ⛔️ جلوگیری از لود تصاویر
+        # "profile.managed_default_content_settings.images": 2  # ⛔️ جلوگیری از لود تصاویر
     })
 
-    chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
+    # chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
+    # chrome_options.add_argument("--disable-gpu")
+    # chrome_options.add_argument("--no-sandbox")
+    # chrome_options.add_argument("--disable-dev-shm-usage")
 
     driver = webdriver.Chrome(options=chrome_options)
     context.application.bot_data["driver"] = driver
@@ -137,7 +139,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- Mp3 Upload Handler ----------------
 
-
 async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     driver = context.application.bot_data.get("driver")
     if not driver:
@@ -151,33 +152,41 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not character_name:
         return await update.message.reply_text("❌ لطفاً نام کرکتر را در کپشن فایل MP3 بنویسید (مثلاً: Pam).")
 
-    # ذخیره در پوشه input
+    # مسیرها
     base_dir = Path(os.path.dirname(os.path.abspath(__file__)))
     input_dir = base_dir / "input"
+    splits_dir = base_dir / "splits"
+    download_dir = base_dir / "download"
+    merged_dir = base_dir / "merged"
+    clean_directory(merged_dir)
+    clean_directory(download_dir)
+    clean_directory(input_dir)
+    clean_directory(splits_dir)
+    
+
     input_dir.mkdir(exist_ok=True)
+    splits_dir.mkdir(exist_ok=True)
+    download_dir.mkdir(exist_ok=True)
+    merged_dir.mkdir(exist_ok=True)
+
+    # ذخیره فایل
     file_name = audio.file_name or "input.mp3"
     input_path = input_dir / file_name
-
     await update.message.reply_text("📥 در حال ذخیره فایل در پوشه input…")
     tg_file = await audio.get_file()
     await tg_file.download_to_drive(str(input_path))
 
-    # پردازش فایل
+    # پردازش و تقسیم
     await update.message.reply_text("🎛 در حال پردازش فایل و تقسیم به بخش‌ها…")
-    splits_dir = base_dir / "splits"
     get_split_mp3(str(input_path), output_base_dir=splits_dir)
 
-    download_dir = base_dir / "download"
-    download_dir.mkdir(exist_ok=True)
-
-
+    # رفرش مرورگر
     driver.refresh()
     WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.readyState") == "complete")
     await update.message.reply_text("🔄 مرورگر رفرش شد.")
     wait = WebDriverWait(driver, 30)
 
-
-    # آپلود همه فایل‌ها
+    # پردازش فایل‌ها
     split_files = sorted(splits_dir.glob("*.mp3"), key=lambda f: int(f.stem))
     if not split_files:
         return await update.message.reply_text("⚠️ هیچ فایل MP3 در پوشه splits پیدا نشد.")
@@ -186,9 +195,9 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             driver.refresh()
             WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.readyState") == "complete")
-            await update.message.reply_text("🔄 مرورگر رفرش شد.")
             wait = WebDriverWait(driver, 30)
-            
+
+            # انتخاب کرکتر
             item_xpath = (
                 f"//div[contains(@class,'toneItem-zsczqb')]"
                 f"[.//div[contains(@class,'toneItem__name') and normalize-space(text())='{character_name}']]"
@@ -198,7 +207,8 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             driver.execute_script("arguments[0].click();", item)
             driver.execute_script("arguments[0].classList.add('toneItem--selected-ZwhzHN');", item)
             await update.message.reply_text(f"🎭 کرکتر «{character_name}» انتخاب شد.")
-            
+
+            # آپلود
             await update.message.reply_text(f"📤 آپلود فایل: {file.name}")
             file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
             driver.execute_script(
@@ -206,34 +216,31 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             file_input.send_keys(str(file.resolve()))
 
+            # کلیک Generate
             generate_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span/text()='Generate']")))
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", generate_btn)
             driver.execute_script("arguments[0].click();", generate_btn)
             await update.message.reply_text("▶️ دکمه Generate کلیک شد.")
 
-            # کلیک روی Download > Audio only
+            # کلیک روی Download → Audio only
             download_btn = wait.until(EC.element_to_be_clickable((
                 By.XPATH, "//div[contains(@class,'download-button') and .//span[text()='Download']]"
             )))
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", download_btn)
             driver.execute_script("arguments[0].click();", download_btn)
-
             dropdown_item = wait.until(EC.element_to_be_clickable((
                 By.XPATH, "//div[@role='menuitem' and contains(text(),'Audio only')]"
             )))
             dropdown_item.click()
-
-            # صبر برای ذخیره فایل
             await update.message.reply_text("⬇️ در حال دانلود فایل خروجی…")
+
+            # انتظار تا فایل دانلود شود
             timeout = 60
             start = time.time()
             downloaded_file = None
             while time.time() - start < timeout:
                 files = list(download_dir.glob("*.mp3"))
-                files = [
-                    f for f in files
-                    if not f.name.endswith(".crdownload") and os.access(f, os.R_OK)
-                ]
+                files = [f for f in files if not f.name.endswith(".crdownload") and os.access(f, os.R_OK)]
                 if files:
                     newest = max(files, key=lambda f: f.stat().st_mtime)
                     if time.time() - newest.stat().st_mtime > 1:
@@ -241,20 +248,27 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         break
                 time.sleep(1)
 
-            if downloaded_file:
-                await update.message.reply_text(f"✅ فایل دانلود شد: {downloaded_file.name}")
-            else:
-                # await update.message.reply_text("⚠️ فایل خروجی دریافت نشد.")
-                pass
         except Exception as e:
             await update.message.reply_text(f"❌ خطا در فایل {file.name}: {e}")
-            
-    driver.refresh()
-    WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.readyState") == "complete")
-    await update.message.reply_text("🔄 مرورگر رفرش شد.")
-    wait = WebDriverWait(driver, 30)
 
-    await update.message.reply_text("🎉 تمام فایل‌ها پردازش، آپلود و دانلود شدند.")
+    # مرج و ارسال
+    try:
+        await update.message.reply_text("🔗 در حال ادغام فایل‌های خروجی…")
+        merge_audio(str(download_dir), str(merged_dir))
+
+        merged_files = list(merged_dir.glob("*.mp3"))
+        merged_files = [f for f in merged_files if f.is_file() and os.access(f, os.R_OK)]
+
+        if not merged_files:
+            await update.message.reply_text("⚠️ هیچ فایل MP3 مرج‌شده‌ای در پوشه merged پیدا نشد.")
+        else:
+            final_file = max(merged_files, key=lambda f: f.stat().st_mtime)
+            await update.message.reply_audio(audio=open(final_file, "rb"), caption="📦 فایل نهایی مرج‌شده")
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطا در ادغام یا ارسال فایل: {e}")
+
+    await update.message.reply_text("🎉 تمام فایل‌ها پردازش، دانلود و ارسال شدند.")
 
 # ---------------- Main ----------------
 def main():
