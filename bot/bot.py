@@ -5,6 +5,7 @@ import cv2
 import aiohttp
 import asyncio
 import aiofiles
+import traceback
 import numpy as np
 from pathlib import Path
 from io import BytesIO
@@ -15,6 +16,7 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 )
 from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.remote.webdriver import WebDriver as WD
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -253,17 +255,23 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"🎭 کرکتر «{character_name}» انتخاب شد.")
 
             # آپلود
-            await update.message.reply_text(f"📤 درحال آپلود فایل: {file.name}")
-            file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
-            driver.execute_script(
-                "arguments[0].style.display='block'; arguments[0].style.visibility='visible';", file_input
-            )
-            file_input.send_keys(str(file.resolve()))
-            
-            # منتظر می‌مانیم که دکمه پخش ظاهر شود (علامت آپلود موفق)
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.playButtonContainer-QVNcXM")))
-            await update.message.reply_text("✅ آپلود فایل با موفقیت انجام شد\nآماده پردازش است.")
-            
+            try:
+                
+                await update.message.reply_text(f"📤 درحال آپلود فایل: {file.name}")
+                file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
+                driver.execute_script(
+                    "arguments[0].style.display='block'; arguments[0].style.visibility='visible';", file_input
+                )
+                file_input.send_keys(str(file.resolve()))
+                
+                # منتظر می‌مانیم که دکمه پخش ظاهر شود (علامت آپلود موفق)
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.playButtonContainer-QVNcXM")))
+                await update.message.reply_text("✅ آپلود فایل با موفقیت انجام شد\nآماده پردازش است.")
+                
+            except WebDriverException as e:
+                print("Error:\n\n", e.msg)
+                print(traceback.format_exc())
+                
             # کلیک Generate
             generate_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span/text()='Generate']")))
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", generate_btn)
