@@ -226,7 +226,7 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     get_split_mp3(str(input_path), output_base_dir=splits_dir)
 
     # رفرش مرورگر
-    await refresh_browser(driver, True)
+    await refresh_browser(driver, update)
 
     # پردازش فایل‌ها
     split_files = sorted(splits_dir.glob("*.mp3"), key=lambda f: int(f.stem))
@@ -235,7 +235,7 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for file in split_files:
         try:
-            wait = await refresh_browser(driver, True)
+            wait = await refresh_browser(driver, update)
 
             # انتخاب کرکتر
             item_xpath = (
