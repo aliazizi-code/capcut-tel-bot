@@ -348,6 +348,10 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 except Exception as e:
                     await update.message.reply_text(f"❌ خطا در فایل {file.name}: {e}")
+                    error_details = traceback.format_exc()
+                    print("❌ خطا در فایل:", file.name)
+                    print("❗️ Exception:", e)
+                    print("📄 Traceback:\n", error_details)
 
             # مرج و ارسال
             async def merge_and_send(update, download_dir: Path, merged_dir: Path):
