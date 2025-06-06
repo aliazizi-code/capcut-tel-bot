@@ -44,10 +44,10 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
         "profile.managed_default_content_settings.images": 2  # ⛔️ جلوگیری از لود تصاویر
     })
 
-    # chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
-    # chrome_options.add_argument("--disable-gpu")
-    # chrome_options.add_argument("--no-sandbox")
-    # chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
 
     driver = webdriver.Chrome(options=chrome_options)
     context.application.bot_data["driver"] = driver
