@@ -81,7 +81,7 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     driver = context.application.bot_data.get("driver")
-    driver.save_screenshot('login.png')
+    
     if driver:
         try:
             _ = driver.title
@@ -91,6 +91,7 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
             driver = await init_browser(context)
     else:
         driver = await init_browser(context)
+        driver.save_screenshot('login.png')
 
     wait = WebDriverWait(driver, 30)
     driver.get(os.getenv("LOGIN_URL"))
