@@ -23,8 +23,8 @@ from clear_dir import clean_directory
 load_dotenv()
 
 
-async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("success")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Hi...")
 
 # ---------------- Browser Initialization ----------------
 async def init_browser(context: ContextTypes.DEFAULT_TYPE):
@@ -54,7 +54,7 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
     return driver
 
 # ---------------- /start Handler ----------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # دسترسی
     list_id = list(map(int, os.getenv("LIST_ID").split(',')))
     if update.effective_user.id not in list_id:
@@ -273,8 +273,8 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- Main ----------------
 def main():
     app = ApplicationBuilder().token(os.getenv("BOT_TOKEN")).build()
+    app.add_handler(CommandHandler("capcut", capcut))
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("test", test))
     app.add_handler(MessageHandler(filters.AUDIO & ~filters.COMMAND, handle_mp3_audio))
     app.run_polling()
 
