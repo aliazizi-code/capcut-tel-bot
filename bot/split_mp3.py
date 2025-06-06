@@ -10,8 +10,7 @@ def get_split_mp3(input_path, n_minutes=15, output_base_dir="splits"):
 
     if duration_sec <= 14 * 60:
         print("⏱️ فایل کوتاه‌تر از ۱۴ دقیقه است، نیازی به تقسیم نیست.")
-        base_name = os.path.splitext(os.path.basename(input_path))[0]
-        output_path = os.path.join(output_base_dir, f"{base_name}.mp3")
+        output_path = os.path.join(output_base_dir, f"{"001"}.mp3")
         os.makedirs(output_base_dir, exist_ok=True)
         shutil.copyfile(input_path, output_path)
         return

@@ -229,7 +229,11 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await refresh_browser(driver, update)
 
     # پردازش فایل‌ها
-    split_files = sorted(splits_dir.glob("*.mp3"), key=lambda f: int(f.stem))
+    split_files = sorted(
+        (f for f in splits_dir.glob("*.mp3") if f.stem.isdigit()),
+        key=lambda f: int(f.stem)
+    )
+
     if not split_files:
         return await update.message.reply_text("⚠️ هیچ فایل MP3 در پوشه splits پیدا نشد.")
 
