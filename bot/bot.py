@@ -54,6 +54,7 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--incognito")
 
     driver = webdriver.Chrome(options=chrome_options)
     context.application.bot_data["driver"] = driver
@@ -159,6 +160,12 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- Mp3 Upload Handler ----------------
 
 async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    list_id = set(map(int, os.getenv("LIST_ID", "").split(',')))
+    if user_id not in list_id:
+        await update.message.reply_text("⛔️ شما دسترسی لازم را ندارید.")
+        return
+    
     if global_lock.locked():
         await update.message.reply_text("⚠️ عملیات دیگری در حال اجراست. لطفاً کمی صبر کنید.")
         return
