@@ -55,6 +55,8 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- /start Handler ----------------
 async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await shutdown_browser(update, context)
+    driver = await init_browser(context)
     # دسترسی
     list_id = list(map(int, os.getenv("LIST_ID").split(',')))
     if update.effective_user.id not in list_id:
