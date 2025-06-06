@@ -3,7 +3,6 @@ import time
 import base64
 import cv2
 import numpy as np
-import shutil
 from pathlib import Path
 from io import BytesIO
 from dotenv import load_dotenv
@@ -19,32 +18,31 @@ from split_mp3 import get_split_mp3
 from merge_wave_converted_to_mp3 import merge_audio
 from clear_dir import clean_directory
 
-
 load_dotenv()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hi...")
+    await update.message.reply_text("سلام! برای شروع، دستور /capcut را ارسال کنید.")
 
 # ---------------- Browser Initialization ----------------
 async def init_browser(context: ContextTypes.DEFAULT_TYPE):
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    download_dir = os.path.join(base_dir, "download")
-    os.makedirs(download_dir, exist_ok=True)
+    base_dir = Path(__file__).parent.resolve()
+    download_dir = base_dir / "download"
+    download_dir.mkdir(exist_ok=True)
 
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_experimental_option("prefs", {
-        "download.default_directory": download_dir,
+        "download.default_directory": str(download_dir),
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True,
         "profile.default_content_setting_values.automatic_downloads": 1,
         "profile.default_content_setting_values.notifications": 2,
         "profile.default_content_setting_values.popups": 0,
-        "profile.managed_default_content_settings.images": 2  # ⛔️ جلوگیری از لود تصاویر
+        "profile.managed_default_content_settings.images": 2
     })
 
-    chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -55,19 +53,14 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- /start Handler ----------------
 async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await shutdown_browser(update, context)
-    driver = await init_browser(context)
-    # دسترسی
-    list_id = list(map(int, os.getenv("LIST_ID").split(',')))
-    if update.effective_user.id not in list_id:
-        return await update.message.reply_text("⛔️ دسترسی ندارید.")
+    user_id = update.effective_user.id
+    list_id = set(map(int, os.getenv("LIST_ID", "").split(',')))
+    if user_id not in list_id:
+        await update.message.reply_text("⛔️ شما دسترسی لازم را ندارید.")
+        return
 
-    await update.message.reply_text("در حال بررسی وضعیت...")
-
-    # 1) مرورگر را reuse کن یا بساز
-    bot_data = context.application.bot_data
-    if "driver" in bot_data:
-        driver = bot_data["driver"]
+    driver = context.application.bot_data.get("driver")
+    if driver:
         try:
             _ = driver.title
             await update.message.reply_text("✅ مرورگر قبلاً باز شده و فعاله.")
@@ -77,30 +70,35 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         driver = await init_browser(context)
 
-    wait = WebDriverWait(driver, timeout=30)
+    wait = WebDriverWait(driver, 30)
     driver.get(os.getenv("LOGIN_URL"))
 
-    # 2) بررسی لاگین بودن
-    if not driver.find_elements(By.NAME, "signUsername"):
-        return await update.message.reply_text("✅ قبلاً لاگین شده‌اید.")
+    try:
+        sign_in_elements = driver.find_elements(By.NAME, "signUsername")
+        if not sign_in_elements:
+            await update.message.reply_text("✅ شما قبلاً لاگین کرده‌اید.")
+            await update.message.reply_text("و منتظر ارسال فایل صوتی هستم. 🎉 مرورگر باز مانده است.")
+            return
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ خطا در بررسی وضعیت لاگین: {e}")
+        return
 
-    # 3) لاگین
     await update.message.reply_text("🔐 لاگین نیستید — در حال لاگین...")
+
     try:
         btn = wait.until(EC.element_to_be_clickable(
             (By.XPATH, "//span[text()='Continue with CapCut Mobile']")))
         btn.click()
         await update.message.reply_text("✅ روی دکمه لاگین کلیک شد.")
 
-        # پاپ‌آپ QR
         time.sleep(2)
         main_win = driver.current_window_handle
         popups = [w for w in driver.window_handles if w != main_win]
         if not popups:
-            return await update.message.reply_text("❌ پنجره QR باز نشد.")
+            await update.message.reply_text("❌ پنجره QR باز نشد.")
+            return
         driver.switch_to.window(popups[0])
 
-        # canvas → تصویر
         canvas = wait.until(EC.presence_of_element_located((By.TAG_NAME, "canvas")))
         data_b64 = driver.execute_script(
             "return arguments[0].toDataURL('image/png').split(',')[1];", canvas
@@ -109,25 +107,24 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
         arr = np.frombuffer(img_data, np.uint8)
         img_np = cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
-        # encode to PNG for telegram
         ok, buf = cv2.imencode(".png", img_np)
         if not ok:
-            return await update.message.reply_text("❌ تبدیل تصویر به بایت‌ شکست خورد.")
+            await update.message.reply_text("❌ تبدیل تصویر به بایت‌ شکست خورد.")
+            return
         bio = BytesIO(buf.tobytes())
         bio.name = "qr.png"
         bio.seek(0)
         await update.message.reply_photo(photo=bio)
 
-        # صبر برای بسته‌شدن پاپ‌آپ
         while len(driver.window_handles) > 1:
             time.sleep(1)
         driver.switch_to.window(main_win)
         await update.message.reply_text("✅ بازگشت به پنجره اصلی")
 
     except Exception as e:
-        return await update.message.reply_text(f"⚠️ خطا در لاگین: {e}")
+        await update.message.reply_text(f"⚠️ خطا در لاگین: {e}")
+        return
 
-    # 4) Accept all
     try:
         time.sleep(5)
         accepts = driver.find_elements(By.XPATH, "//span[text()='Accept all']/ancestor::button")
@@ -137,14 +134,14 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"⚠️ خطا در Accept all: {e}")
 
-    await update.message.reply_text(" و منتظر ارسال فایل صوتی هستم.  🎉 مرورگر باز مانده است.")
+    await update.message.reply_text("و منتظر ارسال فایل صوتی هستم. 🎉 مرورگر باز مانده است.")
 
 # ---------------- Mp3 Upload Handler ----------------
 
 async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     driver = context.application.bot_data.get("driver")
     if not driver:
-        return await update.message.reply_text("❌ مرورگر راه‌اندازی نشده؛ ابتدا /start بزنید.")
+        return await update.message.reply_text("❌ مرورگر راه‌اندازی نشده؛ ابتدا /capcut بزنید.")
 
     audio = update.message.audio
     if not audio or audio.mime_type != "audio/mpeg":
