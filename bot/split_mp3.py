@@ -1,9 +1,20 @@
 import os
+import shutil
 from pydub import AudioSegment
-from clear_dir import clean_directory
+from pydub.utils import mediainfo
+
 
 def get_split_mp3(input_path, n_minutes=15, output_base_dir="splits"):
-    # clean_directory(output_base_dir)
+    audio_info = mediainfo(input_path)
+    duration_sec = float(audio_info["duration"])
+
+    if duration_sec <= 14 * 60:
+        print("⏱️ فایل کوتاه‌تر از ۱۴ دقیقه است، نیازی به تقسیم نیست.")
+        base_name = os.path.splitext(os.path.basename(input_path))[0]
+        output_path = os.path.join(output_base_dir, f"{base_name}.mp3")
+        os.makedirs(output_base_dir, exist_ok=True)
+        shutil.copyfile(input_path, output_path)
+        return
     
     if not os.path.isfile(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")

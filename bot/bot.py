@@ -2,21 +2,26 @@ import os
 import time
 import base64
 import cv2
+import aiohttp
+import asyncio
+import aiofiles
 import numpy as np
 from pathlib import Path
 from io import BytesIO
 from dotenv import load_dotenv
 from telegram import Update
+from telegram.helpers import escape_markdown
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 )
 from selenium import webdriver
+from selenium.webdriver.remote.webdriver import WebDriver as WD
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from split_mp3 import get_split_mp3
 from merge_wave_converted_to_mp3 import merge_audio
-from clear_dir import clean_directory
+from setup_dir import setup_directories
 
 load_dotenv()
 
@@ -50,6 +55,18 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
     driver = webdriver.Chrome(options=chrome_options)
     context.application.bot_data["driver"] = driver
     return driver
+
+# ---------------- Refresh Browser ----------------
+async def refresh_browser(driver: WD, update=None, timeout: int = 30):
+    """رفرش مرورگر و انتظار تا لود کامل صفحه"""
+    driver.refresh()
+    WebDriverWait(driver, timeout).until(
+        lambda d: d.execute_script("return document.readyState") == "complete"
+    )
+    if update:
+        await update.message.reply_text("🔄 مرورگر رفرش شد.")
+    
+    return WebDriverWait(driver, timeout)
 
 # ---------------- /start Handler ----------------
 async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -139,51 +156,77 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- Mp3 Upload Handler ----------------
 
 async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # بررسی وضعیت درایور
     driver = context.application.bot_data.get("driver")
     if not driver:
-        return await update.message.reply_text("❌ مرورگر راه‌اندازی نشده؛ ابتدا /capcut بزنید.")
+        return await update.message.reply_text(
+            "❌ مرورگر راه‌اندازی نشده است.\n\nابتدا دستور /capcut را ارسال کنید."
+        )
 
+    # بررسی وجود فایل صوتی
     audio = update.message.audio
-    if not audio or audio.mime_type != "audio/mpeg":
-        return await update.message.reply_text("❌ فقط فایل‌های MP3 پشتیبانی می‌شوند.")
+    if not audio:
+        return await update.message.reply_text(
+            "❌ لطفاً یک فایل صوتی MP3 ارسال کنید."
+        )
 
+    # بررسی نوع فایل
+    if audio.mime_type != "audio/mpeg":
+        return await update.message.reply_text(
+            "❌ فقط فایل‌های MP3 با فرمت `audio/mpeg` پشتیبانی می‌شوند.",
+            parse_mode="Markdown",
+        )
+
+    # دریافت و بررسی نام کرکتر از کپشن
     character_name = (update.message.caption or "").strip()
     if not character_name:
-        return await update.message.reply_text("❌ لطفاً نام کرکتر را در کپشن فایل MP3 بنویسید (مثلاً: Pam).")
+        return await update.message.reply_text(
+            "❌ لطفاً نام کرکتر را در کپشن فایل MP3 بنویسید.\n\nمثال: *Pam*",
+            parse_mode="Markdown",
+        )
+
+    # 🔹 همه چیز اوکی است؛ ادامه‌ی پردازش در اینجا انجام می‌شود.
+    await update.message.reply_text(
+        f"✅ فایل MP3 با موفقیت دریافت شد.\n\n👤 کرکتر: *{escape_markdown(character_name)}*",
+        parse_mode="Markdown",
+    )
 
     # مسیرها
-    base_dir = Path(os.path.dirname(os.path.abspath(__file__)))
-    input_dir = base_dir / "input"
-    splits_dir = base_dir / "splits"
-    download_dir = base_dir / "download"
-    merged_dir = base_dir / "merged"
-    clean_directory(merged_dir)
-    clean_directory(download_dir)
-    clean_directory(input_dir)
-    clean_directory(splits_dir)
-    
+    folders = setup_directories()
+    input_dir = folders["input"]
+    splits_dir = folders["splits"]
+    download_dir = folders["download"]
+    merged_dir = folders["merged"]
 
-    input_dir.mkdir(exist_ok=True)
-    splits_dir.mkdir(exist_ok=True)
-    download_dir.mkdir(exist_ok=True)
-    merged_dir.mkdir(exist_ok=True)
 
-    # ذخیره فایل
+    # دریافت مسیر فایل تلگرام
     file_name = audio.file_name or "input.mp3"
     input_path = input_dir / file_name
-    await update.message.reply_text("📥 در حال ذخیره فایل در پوشه input…")
-    tg_file = await audio.get_file()
-    await tg_file.download_to_drive(str(input_path))
 
+    # دریافت لینک مستقیم فایل
+    tg_file = await audio.get_file()
+    file_url = tg_file.file_path if tg_file.file_path.startswith("https") else f"https://api.telegram.org/file/bot{context.bot.token}/{tg_file.file_path}"
+
+    # دانلود امن با استریم
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(file_url) as response:
+                if response.status != 200:
+                    return await update.message.reply_text("❌ خطا در دریافت فایل از سرور تلگرام.")
+                
+                with open(input_path, "wb") as f:
+                    async for chunk in response.content.iter_chunked(1024 * 1024):  # تکه‌های ۱ مگابایتی
+                        f.write(chunk)
+    except Exception as e:
+        return await update.message.reply_text(f"❌ خطا در دانلود فایل: {str(e)}")
+
+    
     # پردازش و تقسیم
-    await update.message.reply_text("🎛 در حال پردازش فایل و تقسیم به بخش‌ها…")
+    await update.message.reply_text("🎛 در حال پردازش فایل…")
     get_split_mp3(str(input_path), output_base_dir=splits_dir)
 
     # رفرش مرورگر
-    driver.refresh()
-    WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.readyState") == "complete")
-    await update.message.reply_text("🔄 مرورگر رفرش شد.")
-    wait = WebDriverWait(driver, 30)
+    await refresh_browser(driver, True)
 
     # پردازش فایل‌ها
     split_files = sorted(splits_dir.glob("*.mp3"), key=lambda f: int(f.stem))
@@ -192,9 +235,7 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for file in split_files:
         try:
-            driver.refresh()
-            WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.readyState") == "complete")
-            wait = WebDriverWait(driver, 30)
+            wait = await refresh_browser(driver, True)
 
             # انتخاب کرکتر
             item_xpath = (
@@ -208,13 +249,17 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"🎭 کرکتر «{character_name}» انتخاب شد.")
 
             # آپلود
-            await update.message.reply_text(f"📤 آپلود فایل: {file.name}")
+            await update.message.reply_text(f"📤 درحال آپلود فایل: {file.name}")
             file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
             driver.execute_script(
                 "arguments[0].style.display='block'; arguments[0].style.visibility='visible';", file_input
             )
             file_input.send_keys(str(file.resolve()))
-
+            
+            # منتظر می‌مانیم که دکمه پخش ظاهر شود (علامت آپلود موفق)
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.playButtonContainer-QVNcXM")))
+            await update.message.reply_text("✅ آپلود فایل با موفقیت انجام شد\nآماده پردازش است.")
+            
             # کلیک Generate
             generate_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span/text()='Generate']")))
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", generate_btn)
@@ -234,40 +279,77 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⬇️ در حال دانلود فایل خروجی…")
 
             # انتظار تا فایل دانلود شود
-            timeout = 60
-            start = time.time()
+            timeout = 60 
+            poll_interval = 0.5
+            start_time = time.monotonic()
             downloaded_file = None
-            while time.time() - start < timeout:
-                files = list(download_dir.glob("*.mp3"))
-                files = [f for f in files if not f.name.endswith(".crdownload") and os.access(f, os.R_OK)]
-                if files:
-                    newest = max(files, key=lambda f: f.stat().st_mtime)
-                    if time.time() - newest.stat().st_mtime > 1:
-                        downloaded_file = newest
-                        break
-                time.sleep(1)
+            # ذخیره لیست قبلی فایل‌ها و زمان آخرین تغییر آنها برای مقایسه
+            previous_files = {}
+
+            while (elapsed := time.monotonic() - start_time) < timeout:
+                current_files = {}
+                for f in download_dir.glob("*.mp3"):
+                    if f.name.endswith(".crdownload") or not os.access(f, os.R_OK):
+                        continue
+                    try:
+                        mtime = f.stat().st_mtime
+                    except OSError:
+                        continue
+                    current_files[f] = mtime
+                
+                # اگر هیچ فایلی یافت نشد، ادامه می‌دهیم
+                if not current_files:
+                    time.sleep(poll_interval)
+                    continue
+
+                # پیدا کردن جدیدترین فایل
+                newest_file, newest_mtime = max(current_files.items(), key=lambda item: item[1])
+
+                # اگر فایل جدید است یا زمان تغییر آن نسبت به بار قبل بیشتر از 1 ثانیه گذشته باشد
+                prev_mtime = previous_files.get(newest_file)
+                if prev_mtime is None or (newest_mtime - prev_mtime) > 1:
+                    # به روز رسانی زمان جدید
+                    previous_files = current_files
+                    time.sleep(poll_interval)
+                    continue
+
+                # اگر 1 ثانیه از آخرین تغییر گذشته باشد یعنی فایل پایدار است
+                downloaded_file = newest_file
+                break
+                time.sleep(poll_interval)
 
         except Exception as e:
             await update.message.reply_text(f"❌ خطا در فایل {file.name}: {e}")
 
     # مرج و ارسال
-    try:
-        await update.message.reply_text("🔗 در حال ادغام فایل‌های خروجی…")
-        merge_audio(str(download_dir), str(merged_dir))
+    async def merge_and_send(update, download_dir: Path, merged_dir: Path):
+        try:
+            await update.message.reply_text("🔗 در حال ادغام فایل‌های خروجی…")
+            
+            loop = asyncio.get_running_loop()
+            # اجرای تابع blocking در thread جدا
+            await loop.run_in_executor(None, merge_audio, str(download_dir), str(merged_dir))
 
-        merged_files = list(merged_dir.glob("*.mp3"))
-        merged_files = [f for f in merged_files if f.is_file() and os.access(f, os.R_OK)]
+            merged_files = [f for f in merged_dir.glob("*.mp3") if f.is_file() and os.access(f, os.R_OK)]
 
-        if not merged_files:
-            await update.message.reply_text("⚠️ هیچ فایل MP3 مرج‌شده‌ای در پوشه merged پیدا نشد.")
-        else:
+            if not merged_files:
+                await update.message.reply_text("⚠️ هیچ فایل MP3 مرج‌شده‌ای در پوشه merged پیدا نشد.")
+                return
+            
             final_file = max(merged_files, key=lambda f: f.stat().st_mtime)
-            await update.message.reply_audio(audio=open(final_file, "rb"), caption="📦 فایل نهایی مرج‌شده")
 
-    except Exception as e:
-        await update.message.reply_text(f"❌ خطا در ادغام یا ارسال فایل: {e}")
+            # باز کردن فایل به صورت async و خواندن محتوا
+            async with aiofiles.open(final_file, "rb") as afp:
+                data = await afp.read()
+                await update.message.reply_audio(audio=data, caption="📦 فایل نهایی مرج‌شده")
 
-    await update.message.reply_text("🎉 تمام فایل‌ها پردازش، دانلود و ارسال شدند.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا در ادغام یا ارسال فایل: {e}")
+        else:
+            await update.message.reply_text("🎉 تمام فایل‌ها پردازش، دانلود و ارسال شدند.")
+            
+    await merge_and_send(update, download_dir, merged_dir)
+
 
 
 # ---------------- Shutdown browser ----------------
