@@ -265,8 +265,8 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 file_input.send_keys(str(file.resolve()))
                 
                 # منتظر می‌مانیم که دکمه پخش ظاهر شود (علامت آپلود موفق)
-                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.playButtonContainer-QVNcXM")))
-                await update.message.reply_text("✅ آپلود فایل با موفقیت انجام شد\nآماده پردازش است.")
+                # wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.playButtonContainer-QVNcXM")))
+                # await update.message.reply_text("✅ آپلود فایل با موفقیت انجام شد\nآماده پردازش است.")
                 
             except WebDriverException as e:
                 print("Error:\n\n", e.msg)
