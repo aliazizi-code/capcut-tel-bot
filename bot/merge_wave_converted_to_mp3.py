@@ -83,18 +83,18 @@ def merge_audio(input_dir, output_dir):
                             parameters=["-ar", "44100", "-ac", "2", "-q:a", "0"])
 
         # حذف فایل‌های ورودی پس از ادغام
-        for f in audio_files:
-            try:
-                os.remove(f)
-            except Exception as e:
-                print(f"⚠️ Couldn't delete {f}: {e}")
+        # for f in audio_files:
+        #     try:
+                # os.remove(f)
+    #         except Exception as e:
+    #             print(f"⚠️ Couldn't delete {f}: {e}")
 
-        print(f"\n🎉 Merged file created at: {output_path}")
-        return output_path
+    #     print(f"\n🎉 Merged file created at: {output_path}")
+    #     return output_path
 
-    except Exception as e:
-        print(f"\n❌ Error during process: {e}")
-        return None
+    # except Exception as e:
+    #     print(f"\n❌ Error during process: {e}")
+    #     return None
 
         
 
