@@ -305,6 +305,7 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         await update.message.reply_text(f"❌ خطا در کلیک دکمه Generate: {e}")
 
                     # کلیک روی Download → Audio only
+                    time.sleep(1)
                     download_btn = wait.until(EC.element_to_be_clickable((
                         By.XPATH, "//div[contains(@class,'download-button') and .//span[text()='Download']]"
                     )))
