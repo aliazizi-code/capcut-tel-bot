@@ -81,6 +81,7 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     driver = context.application.bot_data.get("driver")
+    driver.save_screenshot('login.png')
     if driver:
         try:
             _ = driver.title
