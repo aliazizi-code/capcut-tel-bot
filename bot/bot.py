@@ -289,6 +289,9 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         print(traceback.format_exc())
                         
                     # کلیک Generate
+                    wait.until(
+                        lambda d: 'lv-btn-disabled' not in d.find_element(By.XPATH, "//button[span/text()='Generate']").get_attribute("class")
+                    )
                     generate_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span/text()='Generate']")))
                     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", generate_btn)
                     driver.execute_script("arguments[0].click();", generate_btn)
