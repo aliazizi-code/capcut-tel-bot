@@ -270,6 +270,22 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("🎉 تمام فایل‌ها پردازش، دانلود و ارسال شدند.")
 
+
+# ---------------- Shutdown browser ----------------
+async def shutdown_browser(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    driver = context.application.bot_data.get("driver")
+    if not driver:
+        return await update.message.reply_text("⚠️ هیچ مرورگری در حال اجرا نیست.")
+
+    try:
+        driver.quit()
+        context.application.bot_data["driver"] = None  # پاک‌سازی دستی
+        await update.message.reply_text("🛑 مرورگر با موفقیت بسته و خاموش شد.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطا در بستن مرورگر: {e}")
+
+
+
 # ---------------- Main ----------------
 def main():
     app = ApplicationBuilder().token(os.getenv("BOT_TOKEN")).build()
