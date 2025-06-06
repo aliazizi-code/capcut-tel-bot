@@ -299,6 +299,8 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # اسکرول به وسط صفحه روی دکمه
                         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", generate_btn)
                         
+                        time.sleep(1)
+                        
                         # کلیک روی دکمه
                         driver.execute_script("arguments[0].click();", generate_btn)
                         
