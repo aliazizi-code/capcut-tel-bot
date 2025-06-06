@@ -396,6 +396,7 @@ async def shutdown_browser(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("⚠️ هیچ مرورگری در حال اجرا نیست.")
 
     try:
+        driver.delete_all_cookies()
         driver.quit()
         context.application.bot_data["driver"] = None  # پاک‌سازی دستی
         await update.message.reply_text("🛑 مرورگر با موفقیت بسته و خاموش شد.")
