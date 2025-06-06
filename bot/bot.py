@@ -292,6 +292,7 @@ def main():
     app.add_handler(CommandHandler("capcut", capcut))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.AUDIO & ~filters.COMMAND, handle_mp3_audio))
+    app.add_handler(CommandHandler("close", shutdown_browser))
     app.run_polling()
 
 if __name__ == "__main__":
