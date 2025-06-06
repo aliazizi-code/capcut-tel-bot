@@ -45,9 +45,9 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
     })
 
     # chrome_options.add_argument("--headless=new")  # ✅ حالت بدون UI (headless)
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
+    # chrome_options.add_argument("--disable-gpu")
+    # chrome_options.add_argument("--no-sandbox")
+    # chrome_options.add_argument("--disable-dev-shm-usage")
 
     driver = webdriver.Chrome(options=chrome_options)
     context.application.bot_data["driver"] = driver
