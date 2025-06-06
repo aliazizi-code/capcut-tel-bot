@@ -96,15 +96,7 @@ async def capcut(update: Update, context: ContextTypes.DEFAULT_TYPE):
     wait = WebDriverWait(driver, 30)
     driver.get(os.getenv("LOGIN_URL"))
 
-    try:
-        sign_in_elements = driver.find_elements(By.NAME, "signUsername")
-        if not sign_in_elements:
-            await update.message.reply_text("✅ شما قبلاً لاگین کرده‌اید.")
-            await update.message.reply_text("و منتظر ارسال فایل صوتی هستم. 🎉 مرورگر باز مانده است.")
-            return
-    except Exception as e:
-        await update.message.reply_text(f"⚠️ خطا در بررسی وضعیت لاگین: {e}")
-        return
+    
 
     await update.message.reply_text("🔐 لاگین نیستید — در حال لاگین...")
 
