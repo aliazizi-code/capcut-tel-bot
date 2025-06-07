@@ -21,12 +21,12 @@ from selenium.webdriver.remote.webdriver import WebDriver as WD
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from split_mp3 import get_split_mp3
 from merge_wave_converted_to_mp3 import merge_audio
 from setup_dir import setup_directories
+from wait_download import wait_for_download_complete
 
 load_dotenv()
 
@@ -352,52 +352,12 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     await update.message.reply_text("⬇️ در حال دانلود فایل خروجی…")
                     
-                    # انتظار تا فایل دانلود شود
-                    timeout = 60 
-                    poll_interval = 0.5
-                    start_time = time.monotonic()
-                    downloaded_file = None
-                    # ذخیره لیست قبلی فایل‌ها و زمان آخرین تغییر آنها برای مقایسه
-                    previous_files = {}
-
-                    while (elapsed := time.monotonic() - start_time) < timeout:
-                        current_files = {}
-                        for f in download_dir.glob("*.mp3"):
-                            if f.name.endswith(".crdownload") or not os.access(f, os.R_OK):
-                                continue
-                            try:
-                                mtime = f.stat().st_mtime
-                            except OSError:
-                                continue
-                            current_files[f] = mtime
-                        
-                        # اگر هیچ فایلی یافت نشد، ادامه می‌دهیم
-                        if not current_files:
-                            time.sleep(poll_interval)
-                            continue
-
-                        # پیدا کردن جدیدترین فایل
-                        newest_file, newest_mtime = max(current_files.items(), key=lambda item: item[1])
-
-                        # اگر فایل جدید است یا زمان تغییر آن نسبت به بار قبل بیشتر از 1 ثانیه گذشته باشد
-                        prev_mtime = previous_files.get(newest_file)
-                        if prev_mtime is None or (newest_mtime - prev_mtime) > 1:
-                            # به روز رسانی زمان جدید
-                            previous_files = current_files
-                            time.sleep(poll_interval)
-                            continue
-
-                        # اگر 1 ثانیه از آخرین تغییر گذشته باشد یعنی فایل پایدار است
-                        downloaded_file = newest_file
-                        break
-                        time.sleep(poll_interval)
-
-                except Exception as e:
-                    await update.message.reply_text(f"❌ خطا در فایل {file.name}: {e}")
-                    error_details = traceback.format_exc()
-                    print("❌ خطا در فایل:", file.name)
-                    print("❗️ Exception:", e)
-                    print("📄 Traceback:\n", error_details)
+                    
+                    try:
+                        download_file = wait_for_download_complete(download_dir, expected_exts=("mp3", "wave"), timeout=60)
+                        await update.message.reply_text(f"دانلود کامل شد: {download_file}")
+                    except TimeoutError as e:
+                        print(str(e))
 
             # مرج و ارسال
             async def merge_and_send(update, download_dir: Path, merged_dir: Path):
