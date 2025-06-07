@@ -34,6 +34,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- Browser Initialization ----------------
 async def init_browser(context: ContextTypes.DEFAULT_TYPE):
+    from selenium import webdriver
+    from pathlib import Path
+
     base_dir = Path(__file__).parent.resolve()
     download_dir = base_dir / "download"
     download_dir.mkdir(exist_ok=True)
@@ -47,18 +50,29 @@ async def init_browser(context: ContextTypes.DEFAULT_TYPE):
         "profile.default_content_setting_values.automatic_downloads": 1,
         "profile.default_content_setting_values.notifications": 2,
         "profile.default_content_setting_values.popups": 0,
-        "profile.managed_default_content_settings.images": 2
+        "profile.managed_default_content_settings.images": 2,        # غیرفعال کردن لود عکس‌ها
+        "profile.managed_default_content_settings.stylesheets": 2,   # غیرفعال کردن CSS
+        "profile.managed_default_content_settings.fonts": 2,         # غیرفعال کردن فونت
+        "profile.managed_default_content_settings.plugins": 2,
+        "profile.managed_default_content_settings.geolocation": 2,
+        "profile.managed_default_content_settings.media_stream": 2,
     })
 
+    # سبک‌سازی و بهینه‌سازی
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--incognito")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-infobars")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--window-size=1280,800")
 
     driver = webdriver.Chrome(options=chrome_options)
     context.application.bot_data["driver"] = driver
     return driver
+
 
 # ---------------- Refresh Browser ----------------
 async def refresh_browser(driver: WD, update=None, timeout: int = 30):
@@ -304,19 +318,30 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         driver.save_screenshot('error_generate_btn.png')
                         await update.message.reply_text(f"❌ خطا در کلیک دکمه Generate: {e}")
 
-                    # کلیک روی Download → Audio only
-                    time.sleep(1)
-                    download_btn = wait.until(EC.element_to_be_clickable((
-                        By.XPATH, "//div[contains(@class,'download-button') and .//span[text()='Download']]"
-                    )))
+                    
+                    # اول مطمئن شو وجود داره
+                    wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'download-button') and .//span[text()='Download']]")))
+
+                    # بعد منتظر بشو تا کلیک‌پذیر بشه
+                    download_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class,'download-button') and .//span[text()='Download']]")))
+
+                    # در صورت نیاز بررسی کن disabled نباشه
+                    while True:
+                        class_attr = download_btn.get_attribute("class")
+                        if "disabled" not in class_attr:
+                            break
+                        time.sleep(1)
+
+                    # اسکرول و کلیک
                     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", download_btn)
                     driver.execute_script("arguments[0].click();", download_btn)
-                    dropdown_item = wait.until(EC.element_to_be_clickable((
-                        By.XPATH, "//div[@role='menuitem' and contains(text(),'Audio only')]"
-                    )))
-                    dropdown_item.click()
-                    await update.message.reply_text("⬇️ در حال دانلود فایل خروجی…")
 
+                    # صبر کن تا گزینه‌ی Audio only بیاد و کلیکش کن
+                    dropdown_item = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@role='menuitem' and contains(text(),'Audio only')]")))
+                    dropdown_item.click()
+
+                    await update.message.reply_text("⬇️ در حال دانلود فایل خروجی…")
+                    
                     # انتظار تا فایل دانلود شود
                     timeout = 60 
                     poll_interval = 0.5
