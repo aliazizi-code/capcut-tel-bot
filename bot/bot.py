@@ -352,12 +352,18 @@ async def handle_mp3_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     await update.message.reply_text("⬇️ در حال دانلود فایل خروجی…")
                     
-                    
                     try:
-                        download_file = wait_for_download_complete(download_dir, expected_exts=("mp3", "wave"), timeout=60)
-                        await update.message.reply_text(f"دانلود کامل شد: {download_file}")
+                        downloaded_file = wait_for_download_complete(download_dir, expected_exts=("mp3", "wav"), timeout=60)
+                        await update.message.reply_text(f"دانلود کامل شد: {downloaded_file}")
                     except TimeoutError as e:
                         print(str(e))
+                
+                except Exception as e:
+                    await update.message.reply_text(f"❌ خطا در فایل {file.name}: {e}")
+                    error_details = traceback.format_exc()
+                    print("❌ خطا در فایل:", file.name)
+                    print("❗️ Exception:", e)
+                    print("📄 Traceback:\n", error_details)
 
             # مرج و ارسال
             async def merge_and_send(update, download_dir: Path, merged_dir: Path):
