@@ -19,6 +19,9 @@ from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.remote.webdriver import WebDriver as WD
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from split_mp3 import get_split_mp3
@@ -33,45 +36,52 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("سلام! برای شروع، دستور /capcut را ارسال کنید.")
 
 # ---------------- Browser Initialization ----------------
-async def init_browser(context: ContextTypes.DEFAULT_TYPE):
-    from selenium import webdriver
-    from pathlib import Path
-
+async def init_browser(context: ContextTypes.DEFAULT_TYPE) -> webdriver.Chrome:
     base_dir = Path(__file__).parent.resolve()
     download_dir = base_dir / "download"
     download_dir.mkdir(exist_ok=True)
 
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_experimental_option("prefs", {
+    chrome_options = Options()
+
+    # ست کردن capabilities از طریق options
+    chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+
+    prefs = {
         "download.default_directory": str(download_dir),
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
+        "download_restrictions": 0,
+        "plugins.always_open_pdf_externally": True,
         "safebrowsing.enabled": True,
-        "profile.default_content_setting_values.automatic_downloads": 1,
-        "profile.default_content_setting_values.notifications": 2,
-        "profile.default_content_setting_values.popups": 0,
-        "profile.managed_default_content_settings.images": 2,        # غیرفعال کردن لود عکس‌ها
-        "profile.managed_default_content_settings.stylesheets": 2,   # غیرفعال کردن CSS
-        "profile.managed_default_content_settings.fonts": 2,         # غیرفعال کردن فونت
+        "safebrowsing.disable_download_protection": True,
+        "profile.managed_default_content_settings.images": 2,
+        "profile.managed_default_content_settings.stylesheets": 2,
+        "profile.managed_default_content_settings.fonts": 2,
         "profile.managed_default_content_settings.plugins": 2,
-        "profile.managed_default_content_settings.geolocation": 2,
-        "profile.managed_default_content_settings.media_stream": 2,
-    })
+        "profile.managed_default_content_settings.popups": 0,
+        "profile.default_content_setting_values.automatic_downloads": 1,
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option("useAutomationExtension", False)
 
-    # سبک‌سازی و بهینه‌سازی
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--incognito")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-infobars")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--disable-popup-blocking")
     chrome_options.add_argument("--window-size=1280,800")
 
-    driver = webdriver.Chrome(options=chrome_options)
+    # ساخت درایور بدون desired_capabilities
+    driver = webdriver.Chrome(service=Service(), options=chrome_options)
+
     context.application.bot_data["driver"] = driver
     return driver
+
+
 
 
 # ---------------- Refresh Browser ----------------
